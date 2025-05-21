@@ -6,11 +6,11 @@ import {
   TextInput,
   TouchableOpacity,
   Text,
-  Alert,
+  Modal,
   RefreshControl,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import Icon from 'react-native-vector-icons/Ionicons';  // Import icon library
+import Icon from 'react-native-vector-icons/Ionicons';
 import NoteCard from '../components/NoteCard';
 import NoteToolbar from '../components/NoteToolbar';
 import { fetchNotes, deleteNote, updateNote } from '../utils/api';
@@ -20,8 +20,8 @@ export default function HomeScreen({ navigation }) {
   const [selectedIds, setSelectedIds] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  // Helper to sort notes so pinned ones are on top
   const sortNotes = (notesArray) => {
     return notesArray.slice().sort((a, b) => b.pinned - a.pinned);
   };
@@ -33,7 +33,7 @@ export default function HomeScreen({ navigation }) {
       setNotes(sortNotes(data));
       setSelectedIds([]);
     } catch (error) {
-      Alert.alert('Error', 'Failed to load notes');
+      alert('Failed to load notes');
     } finally {
       setRefreshing(false);
     }
@@ -61,7 +61,7 @@ export default function HomeScreen({ navigation }) {
         )
       );
     } catch {
-      Alert.alert('Error', 'Failed to toggle pin');
+      alert('Failed to toggle pin');
     }
   };
 
@@ -85,36 +85,23 @@ export default function HomeScreen({ navigation }) {
     toggleSelect(id);
   };
 
-  const onDelete = () => {
-    Alert.alert(
-      'Delete Notes',
-      `Are you sure you want to delete ${selectedIds.length} note(s)?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await Promise.all(selectedIds.map((id) => deleteNote(id)));
-              setNotes((prevNotes) =>
-                prevNotes.filter((note) => !selectedIds.includes(note.id))
-              );
-              setSelectedIds([]);
-            } catch (error) {
-              Alert.alert('Error', 'Failed to delete notes');
-            }
-          },
-        },
-      ]
-    );
+  const onDelete = async () => {
+    try {
+      await Promise.all(selectedIds.map((id) => deleteNote(id)));
+      setNotes((prevNotes) =>
+        prevNotes.filter((note) => !selectedIds.includes(note.id))
+      );
+      setSelectedIds([]);
+      setShowDeleteModal(false);
+    } catch (error) {
+      alert('Failed to delete notes');
+    }
   };
 
   const onCancelSelection = () => {
     setSelectedIds([]);
   };
 
-  // Fix: use safe fallback for title and searchQuery to avoid null errors
   const filteredNotes = notes
     .filter(note => note.archived === 0)
     .filter(note =>
@@ -125,7 +112,7 @@ export default function HomeScreen({ navigation }) {
     <View style={styles.container}>
       <NoteToolbar
         selected={selectedIds}
-        onDelete={onDelete}
+        onDelete={() => setShowDeleteModal(true)}
         onCancel={onCancelSelection}
       />
 
@@ -165,6 +152,41 @@ export default function HomeScreen({ navigation }) {
       >
         <Text style={styles.fabText}>＋</Text>
       </TouchableOpacity>
+
+      {/* Custom Delete Modal */}
+      <Modal
+        visible={showDeleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Delete Notes</Text>
+            <Text style={styles.modalMessage}>
+              Are you sure you want to delete{' '}
+              <Text style={{ fontWeight: 'bold' }}>
+                {selectedIds.length}
+              </Text>{' '}
+              note(s)? This action cannot be undone.
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setShowDeleteModal(false)}
+              >
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={onDelete}
+              >
+                <Text style={styles.deleteText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -185,9 +207,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 6,
   },
-  searchIcon: {
-    marginRight: 10,
-  },
+  searchIcon: { marginRight: 10 },
   searchInput: {
     flex: 1,
     fontSize: 18,
@@ -211,5 +231,59 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 32,
     lineHeight: 36,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalBox: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    width: '85%',
+    alignItems: 'center',
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#ff4d4d',
+    marginBottom: 12,
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelButton: {
+    backgroundColor: '#ddd',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    marginRight: 10,
+  },
+  cancelText: {
+    color: '#333',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  deleteButton: {
+    backgroundColor: '#ff4d4d',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+  },
+  deleteText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
   },
 });
